@@ -32,10 +32,12 @@ export default function SessionDetail({ sessionId }: Props) {
   const [detail, setDetail] = useState<SessionDetailType | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('terminal')
   const [disconnected, setDisconnected] = useState(false)
+  const [unseenPerms, setUnseenPerms] = useState(0)
 
   useEffect(() => {
     setDetail(null)
     setDisconnected(false)
+    setUnseenPerms(0)
 
     const load = () =>
       fetch(`/sessions/${sessionId}`)
@@ -114,7 +116,10 @@ export default function SessionDetail({ sessionId }: Props) {
         {TAB_LABELS.map(({ key, label }) => (
           <button
             key={key}
-            onClick={() => setActiveTab(key)}
+            onClick={() => {
+              setActiveTab(key)
+              if (key === 'perms') setUnseenPerms(0)
+            }}
             style={{
               padding: '8px 20px',
               background: 'transparent',
@@ -124,19 +129,48 @@ export default function SessionDetail({ sessionId }: Props) {
               cursor: 'pointer',
               fontSize: 13,
               fontWeight: activeTab === key ? 600 : 400,
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
             }}
           >
             {label}
+            {key === 'perms' && unseenPerms > 0 && activeTab !== 'perms' && (
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: '#d29922',
+                  display: 'inline-block',
+                  flexShrink: 0,
+                }}
+              />
+            )}
           </button>
         ))}
       </div>
 
-      {/* Panel */}
-      <div style={{ flex: 1, overflow: 'hidden' }}>
-        {activeTab === 'terminal' && <TerminalChat wsUrl={detail.ws_url} />}
-        {activeTab === 'plan'     && <AgentPlan    wsUrl={detail.ws_url} />}
-        {activeTab === 'diff'     && <DiffViewer   wsUrl={detail.ws_url} />}
-        {activeTab === 'perms'    && <PermissionPanel wsUrl={detail.ws_url} />}
+      {/* Panel — all tabs stay mounted to preserve WebSocket state */}
+      <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+        <div style={{ display: activeTab === 'terminal' ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
+          <TerminalChat wsUrl={detail.ws_url} />
+        </div>
+        <div style={{ display: activeTab === 'plan' ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
+          <AgentPlan wsUrl={detail.ws_url} />
+        </div>
+        <div style={{ display: activeTab === 'diff' ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
+          <DiffViewer wsUrl={detail.ws_url} />
+        </div>
+        <div style={{ display: activeTab === 'perms' ? 'block' : 'none', height: '100%' }}>
+          <PermissionPanel
+            wsUrl={detail.ws_url}
+            onNewPermission={() => {
+              if (activeTab !== 'perms') setUnseenPerms((n) => n + 1)
+            }}
+          />
+        </div>
       </div>
     </div>
   )

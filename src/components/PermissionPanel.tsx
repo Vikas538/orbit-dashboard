@@ -4,9 +4,10 @@ import { PermsMessage, PermissionRequestMessage } from '../types'
 
 interface Props {
   wsUrl: string | null
+  onNewPermission?: () => void
 }
 
-export default function PermissionPanel({ wsUrl }: Props) {
+export default function PermissionPanel({ wsUrl, onNewPermission }: Props) {
   const [pending, setPending] = useState<PermissionRequestMessage[]>([])
 
   const url = wsUrl ? wsUrl.replace(/^http/, 'ws') + '/ws/perms' : null
@@ -18,6 +19,7 @@ export default function PermissionPanel({ wsUrl }: Props) {
         setPending((prev) => {
           // deduplicate by id
           if (prev.find((p) => p.id === msg.id)) return prev
+          onNewPermission?.()
           return [...prev, msg]
         })
       } else if (msg.type === 'permission_resolved') {
