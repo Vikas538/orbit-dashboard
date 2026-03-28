@@ -11,6 +11,7 @@ export default function TerminalChat({ wsUrl }: Props) {
   const [input, setInput] = useState('')
   const [stopping, setStopping] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const seenRef = useRef<Set<string>>(new Set())
 
   const url = wsUrl ? wsUrl.replace(/^http/, 'ws') + '/ws/chat' : null
   // Derive HTTP base from ws_url for the stop call
@@ -18,7 +19,18 @@ export default function TerminalChat({ wsUrl }: Props) {
 
   const { status, send } = useWebSocket<ChatMessage>({
     url,
-    onMessage: (msg) => setMessages((prev) => [...prev, msg]),
+    onMessage: (msg) => {
+      // Deduplicate by timestamp+content key
+      const key = `${msg.timestamp}|${msg.content}`
+      if (seenRef.current.has(key)) return
+      seenRef.current.add(key)
+      // Evict old keys to prevent unbounded growth
+      if (seenRef.current.size > 2000) {
+        const iter = seenRef.current.values()
+        seenRef.current.delete(iter.next().value)
+      }
+      setMessages((prev) => [...prev, msg])
+    },
   })
 
   useEffect(() => {
@@ -29,10 +41,7 @@ export default function TerminalChat({ wsUrl }: Props) {
     const content = input.trim()
     if (!content) return
     send({ content })
-    setMessages((prev) => [
-      ...prev,
-      { type: 'user_message', content, timestamp: new Date().toISOString() },
-    ])
+    // Don't add locally — ws_server broadcasts it back, onMessage handles it
     setInput('')
   }
 

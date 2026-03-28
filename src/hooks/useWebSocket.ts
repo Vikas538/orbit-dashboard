@@ -8,6 +8,10 @@ interface Options<T> {
   maxRetries?: number
 }
 
+// Module-level guard: prevents two hook instances from opening duplicate
+// connections to the same URL (e.g. during React double-mount in dev).
+const _activeUrls = new Set<string>()
+
 export function useWebSocket<T>({ url, onMessage, maxRetries = 5 }: Options<T>) {
   const [status, setStatus] = useState<WSStatus>('closed')
   const ws = useRef<WebSocket | null>(null)
@@ -19,8 +23,10 @@ export function useWebSocket<T>({ url, onMessage, maxRetries = 5 }: Options<T>) 
 
   const connect = useCallback(() => {
     if (!url || unmountedRef.current) return
+    if (_activeUrls.has(url)) return   // another instance already owns this URL
 
     setStatus('connecting')
+    _activeUrls.add(url)
     const socket = new WebSocket(url)
     ws.current = socket
 
@@ -40,6 +46,7 @@ export function useWebSocket<T>({ url, onMessage, maxRetries = 5 }: Options<T>) 
     }
 
     socket.onclose = () => {
+      _activeUrls.delete(url)
       if (unmountedRef.current) return
       setStatus('closed')
       if (retriesRef.current < maxRetries) {
@@ -64,6 +71,7 @@ export function useWebSocket<T>({ url, onMessage, maxRetries = 5 }: Options<T>) 
     }
     return () => {
       unmountedRef.current = true
+      if (url) _activeUrls.delete(url)
       ws.current?.close()
     }
   }, [url, connect])
